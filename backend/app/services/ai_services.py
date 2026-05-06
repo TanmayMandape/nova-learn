@@ -2,7 +2,7 @@ import json
 import os
 from google import genai
 
-MODEL = "gemini-1.5-flash"
+MODEL = "gemini-1.5-flash-latest"
 
 def _client():
     return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
