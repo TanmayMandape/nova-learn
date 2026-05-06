@@ -31,9 +31,12 @@ async def ask_chatbot(req: ChatRequest):
     log_data = {"student_id": "demo-student", "query": question, "response": answer}
     try:
         response = supabase.table("chatbot_logs").insert(log_data).execute()
-        return response.data[0]
-    except Exception:
-        return {"query": question, "response": answer, "student_id": "demo-student"}
+        if response.data:
+            return response.data[0]
+    except Exception as db_err:
+        print(f"chatbot log DB error: {db_err}")
+    # Always return answer even if DB fails
+    return {"id": "local", "student_id": "demo-student", "query": question, "response": answer, "timestamp": None}
 
 
 @router.get("/history")
