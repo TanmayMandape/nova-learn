@@ -22,7 +22,7 @@ const StudentOverview = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const lectures = await apiFetch("/lectures");
+        const lectures = await apiFetch("/lectures/");
         if (lectures && lectures.length > 0) {
           setLatestLecture(lectures[0]);
         }
