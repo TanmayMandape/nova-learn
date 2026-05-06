@@ -1,34 +1,45 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from app.services.supabase_client import supabase
 from app.services.ai_services import chatbot_response
-from app.models.schemas import ChatbotLogCreate, ChatbotLog
+from pydantic import BaseModel
 from typing import List
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
-@router.post("/ask", response_model=ChatbotLog)
-async def ask_chatbot(query_in: ChatbotLogCreate):
-    # Get mock AI response
-    response_text = chatbot_response(query_in.query)
-    
-    # Log to Supabase
-    log_data = {
-        "student_id": "mock-student-123",
-        "query": query_in.query,
-        "response": response_text,
-        "timestamp": "now()"
-    }
-    
+
+class ChatRequest(BaseModel):
+    query: str = ""
+    question: str = ""
+
+
+def _get_latest_transcript() -> str:
+    try:
+        result = supabase.table("lectures").select("transcript").order("created_at", desc=True).limit(1).execute()
+        if result.data:
+            return result.data[0].get("transcript", "")
+    except Exception:
+        pass
+    return ""
+
+
+@router.post("/ask")
+async def ask_chatbot(req: ChatRequest):
+    question = req.query or req.question
+    transcript = _get_latest_transcript()
+    answer = chatbot_response(question=question, transcript=transcript)
+
+    log_data = {"student_id": "demo-student", "query": question, "response": answer}
     try:
         response = supabase.table("chatbot_logs").insert(log_data).execute()
         return response.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        return {"query": question, "response": answer, "student_id": "demo-student"}
 
-@router.get("/history", response_model=List[ChatbotLog])
+
+@router.get("/history")
 async def get_chatbot_history():
     try:
-        response = supabase.table("chatbot_logs").select("*").eq("student_id", "mock-student-123").order("timestamp", desc=True).execute()
+        response = supabase.table("chatbot_logs").select("*").order("timestamp", desc=True).limit(20).execute()
         return response.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        return []

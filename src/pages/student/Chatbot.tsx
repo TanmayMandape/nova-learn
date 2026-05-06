@@ -53,7 +53,7 @@ const Chatbot = () => {
         body: JSON.stringify({ query: input })
       });
 
-      setMessages(prev => [...prev, { role: "bot", text: response.response }]);
+      setMessages(prev => [...prev, { role: "bot", text: response.response || response.query || "No response" }]);
     } catch (error: any) {
       console.error("Chatbot error:", error);
       toast.error(error.message || "Failed to get AI response");
