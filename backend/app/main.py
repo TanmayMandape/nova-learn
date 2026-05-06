@@ -10,6 +10,7 @@ app = FastAPI(
     debug=settings.DEBUG,
 )
 
+# CORS — allow all origins (demo mode)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
