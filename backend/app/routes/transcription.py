@@ -12,7 +12,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
         audio_bytes = await audio.read()
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
+            model="gemini-1.5-flash",
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type="audio/webm"),
                 "Transcribe this audio. Speaker may use English, Hindi or Marathi. Return only transcript text.",
