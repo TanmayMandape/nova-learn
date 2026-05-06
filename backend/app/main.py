@@ -5,16 +5,14 @@ from app.config import settings
 
 app = FastAPI(
     title="AI-Powered Classroom Assistant API",
-    description="Backend API for managing lectures, assignments, and AI chatbot interactions.",
     version="1.0.0",
     debug=settings.DEBUG,
 )
 
-# CORS — allow all origins (demo mode)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["https://aiclassroomassistant.vercel.app", "http://localhost:8080", "*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
