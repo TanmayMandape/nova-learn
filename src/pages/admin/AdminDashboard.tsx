@@ -12,10 +12,10 @@ const navItems = [
 ];
 
 const stats = [
-  { label: "Total Students", value: "2,847", icon: Users, trend: "+12%" },
-  { label: "Active Lectures", value: "12", icon: BookOpen, trend: "+3" },
-  { label: "Assignments", value: "48", icon: ClipboardList, trend: "+5" },
-  { label: "Avg. Score", value: "87%", icon: Award, trend: "+2.4%" },
+  { label: "Total Students", value: "12", icon: Users, trend: "+2" },
+  { label: "Active Lectures", value: "1", icon: BookOpen, trend: "+1" },
+  { label: "Assignments", value: "1", icon: ClipboardList, trend: "+1" },
+  { label: "Avg. Score", value: "78%", icon: Award, trend: "+2.4%" },
 ];
 
 const AdminOverview = () => (
@@ -53,10 +53,10 @@ const AdminOverview = () => (
       <h2 className="font-display font-semibold mb-4">Recent Activity</h2>
       <div className="space-y-3">
         {[
-          { text: "New assignment 'Data Structures Quiz 3' created", time: "2 min ago" },
-          { text: "Lecture 'Advanced Algorithms' transcription completed", time: "15 min ago" },
-          { text: "Announcement posted to CS301 students", time: "1 hr ago" },
-          { text: "Credits awarded to top 10 students", time: "3 hrs ago" },
+          { text: "Lecture recorded: AI & ML Fundamentals — transcription completed", time: "Today" },
+          { text: "Assignment generated: 10 questions (5 MCQ + 5 Short Answer)", time: "Today" },
+          { text: "12 students viewed the lecture notes", time: "Today" },
+          { text: "AI notes auto-generated from lecture transcript", time: "Today" },
         ].map((a, i) => (
           <motion.div
             key={i}

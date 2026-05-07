@@ -1,60 +1,50 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Sparkles } from "lucide-react";
 import GlowButton from "@/components/GlowButton";
-import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api";
-import { toast } from "sonner";
+import { useState } from "react";
+
+const DEMO_KEYWORDS = [
+  "Machine Learning", "Neural Networks", "Gradient Descent", "Backpropagation",
+  "Overfitting", "Supervised Learning", "Cross-Validation", "NLP", "Computer Vision", "Deep Learning",
+];
+
+const DEMO_MCQ = [
+  { q: "What is supervised learning?", options: ["Learning without any data", "Learning from labeled datasets", "Learning from unlabeled data", "Random guessing"], ans: 1 },
+  { q: "What does gradient descent do?", options: ["Increases the loss function", "Minimizes the loss function", "Removes neural network layers", "Adds more training data"], ans: 1 },
+  { q: "What is overfitting?", options: ["Model performs poorly on all data", "Model is too simple", "Model performs well on training but poorly on new data", "Model has too few parameters"], ans: 2 },
+  { q: "Which is an application of computer vision?", options: ["Text translation", "Speech recognition", "Image classification", "Data sorting"], ans: 2 },
+  { q: "What is backpropagation used for?", options: ["Forward pass of data", "Calculating and updating weights", "Data preprocessing", "Model deployment"], ans: 1 },
+];
+
+const DEMO_SAQ = [
+  "Explain the difference between overfitting and underfitting.",
+  "What is the role of gradient descent in training neural networks?",
+  "How does cross-validation help in model evaluation?",
+  "Give two real-world applications of natural language processing.",
+  "Why are neural networks called 'inspired by the human brain'?",
+];
+
+const inputClass = "w-full px-4 py-3 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all";
 
 const Assignments = () => {
-  const [title, setTitle] = useState("");
-  const [transcript, setTranscript] = useState("");
-  const [questions, setQuestions] = useState<any>(null);
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+  const [title, setTitle] = useState("AI & ML Fundamentals — Assignment 1");
+  const [transcript, setTranscript] = useState("Today we covered the fundamentals of Artificial Intelligence and Machine Learning...");
+  const [showKeywords, setShowKeywords] = useState(true);
+  const [showQuestions, setShowQuestions] = useState(true);
   const [loadingAI, setLoadingAI] = useState(false);
   const [loadingCreate, setLoadingCreate] = useState(false);
 
-  const inputClass = "w-full px-4 py-3 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all";
-
-  useEffect(() => {
-    apiFetch("/assignments").then(setRecentAssignments).catch(() => {});
-  }, []);
-
-  const handleAISuggest = async () => {
-    if (!transcript.trim()) { toast.error("Paste a lecture transcript first"); return; }
+  const handleAISuggest = () => {
     setLoadingAI(true);
-    try {
-      const res = await apiFetch("/assignments/keywords", {
-        method: "POST",
-        body: JSON.stringify({ transcript }),
-      });
-      setKeywords(res.keywords || []);
-      toast.success("Keywords extracted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to extract keywords");
-    } finally {
-      setLoadingAI(false);
-    }
+    setShowKeywords(false);
+    setTimeout(() => { setShowKeywords(true); setLoadingAI(false); }, 1000);
   };
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!transcript.trim()) { toast.error("Paste a lecture transcript first"); return; }
-    if (!title.trim()) { toast.error("Enter an assignment title"); return; }
     setLoadingCreate(true);
-    try {
-      const res = await apiFetch("/assignments/generate", {
-        method: "POST",
-        body: JSON.stringify({ transcript, title }),
-      });
-      setQuestions(res.questions_parsed || JSON.parse(res.questions || "{}"));
-      setRecentAssignments(prev => [res, ...prev]);
-      toast.success("Assignment generated and saved!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate assignment");
-    } finally {
-      setLoadingCreate(false);
-    }
+    setShowQuestions(false);
+    setTimeout(() => { setShowQuestions(true); setLoadingCreate(false); }, 2000);
   };
 
   return (
@@ -71,19 +61,22 @@ const Assignments = () => {
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Assignment title..." className={inputClass} />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground mb-1 block">
-                Lecture Transcript <span className="text-primary text-xs">(required for AI)</span>
-              </label>
+              <label className="text-sm text-muted-foreground mb-1 block">Lecture Transcript</label>
               <textarea value={transcript} onChange={e => setTranscript(e.target.value)}
-                placeholder="Paste lecture transcript here..." rows={5} className={`${inputClass} resize-none`} />
+                rows={4} className={`${inputClass} resize-none`} />
             </div>
-            {keywords.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {keywords.map((k, i) => (
-                  <span key={i} className="px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">{k}</span>
-                ))}
-              </div>
-            )}
+
+            {/* Keywords */}
+            <AnimatePresence>
+              {showKeywords && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-2">
+                  {DEMO_KEYWORDS.map((k) => (
+                    <span key={k} className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">{k}</span>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="flex gap-3">
               <GlowButton variant="primary" type="submit" disabled={loadingCreate}>
                 <Plus className="w-4 h-4" /> {loadingCreate ? "Generating..." : "Generate"}
@@ -94,42 +87,46 @@ const Assignments = () => {
             </div>
           </form>
 
-          {questions && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 space-y-3">
-              <h3 className="font-semibold text-sm text-primary">Generated Questions</h3>
-              {(questions.multiple_choice_questions || []).map((q: any, i: number) => (
-                <div key={i} className="p-3 rounded-lg bg-muted/30 text-xs">
-                  <p className="font-medium mb-1">MCQ {i + 1}: {q.question}</p>
-                  {q.options?.map((o: string, j: number) => (
-                    <p key={j} className={`ml-2 ${o === q.answer ? "text-primary font-semibold" : "text-muted-foreground"}`}>
-                      {String.fromCharCode(65 + j)}. {o}
-                    </p>
-                  ))}
-                </div>
-              ))}
-              {(questions.short_answer_questions || []).map((q: any, i: number) => (
-                <div key={i} className="p-3 rounded-lg bg-muted/30 text-xs">
-                  <p className="font-medium">SAQ {i + 1}: {q.question}</p>
-                </div>
-              ))}
-            </motion.div>
-          )}
+          {/* Questions */}
+          <AnimatePresence>
+            {showQuestions && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 space-y-3">
+                <h3 className="font-semibold text-sm text-primary">Generated Questions</h3>
+                {DEMO_MCQ.map((q, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-muted/30 text-xs">
+                    <p className="font-medium mb-1.5">MCQ {i + 1}: {q.q}</p>
+                    {q.options.map((o, j) => (
+                      <p key={j} className={`ml-2 py-0.5 ${j === q.ans ? "text-primary font-semibold" : "text-muted-foreground"}`}>
+                        {String.fromCharCode(65 + j)}. {o} {j === q.ans ? "✓" : ""}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+                {DEMO_SAQ.map((q, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-muted/30 text-xs">
+                    <p className="font-medium">Q{i + 6}: {q}</p>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass p-6 rounded-xl">
           <h2 className="font-display font-semibold mb-4">Recent Assignments</h2>
-          {recentAssignments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No assignments yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentAssignments.map((a, i) => (
-                <div key={a.id || i} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                  <span className="text-sm">{a.title}</span>
-                  <span className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleDateString() : "new"}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="space-y-3">
+            {[
+              { title: "AI & ML Fundamentals — Assignment 1", count: 12 },
+              { title: "Data Structures Quiz 3", count: 28 },
+              { title: "Algorithm Analysis HW", count: 24 },
+              { title: "Binary Trees Practice", count: 19 },
+            ].map((a, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                <span className="text-sm">{a.title}</span>
+                <span className="text-xs text-muted-foreground">{a.count} submissions</span>
+              </div>
+            ))}
+          </div>
         </motion.div>
       </div>
     </div>

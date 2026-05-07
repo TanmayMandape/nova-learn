@@ -3,17 +3,38 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
+const DEMO_LECTURE = {
+  id: "demo-1",
+  title: "AI & ML Fundamentals",
+  summary: `📚 AI Generated Notes — Artificial Intelligence & ML Fundamentals
+
+1. Supervised Learning: Model trained on labeled datasets to predict outcomes.
+2. Neural Networks: Computational models inspired by biological brain structure.
+3. Gradient Descent: Optimization algorithm that minimizes the loss function.
+4. Backpropagation: Method to calculate gradients and update weights.
+5. Overfitting: Model performs well on training data but poorly on new data.
+6. Underfitting: Model too simple to capture patterns in data.
+7. Cross-Validation: Technique to evaluate model generalization.
+8. NLP: Enables machines to understand and process human language.
+9. Computer Vision: AI field focused on image and video understanding.`,
+  created_at: new Date().toISOString(),
+};
+
 const AINotes = () => {
-  const [lectures, setLectures] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [lectures, setLectures] = useState<any[]>([DEMO_LECTURE]);
+  const [selected, setSelected] = useState<any>(DEMO_LECTURE);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     apiFetch("/lectures/")
       .then(data => {
         const list = Array.isArray(data) ? data : [];
-        setLectures(list);
-        if (list.length > 0) setSelected(list[0]);
+        if (list.length > 0) {
+          // Merge real lectures with demo, real ones first
+          const merged = [...list, DEMO_LECTURE];
+          setLectures(merged);
+          setSelected(merged[0]);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -28,11 +49,7 @@ const AINotes = () => {
 
       {loading && <p className="text-sm text-muted-foreground animate-pulse">Loading notes...</p>}
 
-      {!loading && lectures.length === 0 && (
-        <p className="text-sm text-muted-foreground">No lectures recorded yet. Record a lecture first.</p>
-      )}
-
-      {!loading && lectures.length > 0 && (
+      {!loading && (
         <div className="flex flex-col gap-6 max-w-3xl">
           <div className="flex gap-2 flex-wrap">
             {lectures.map((lec) => (
@@ -51,13 +68,9 @@ const AINotes = () => {
             <motion.div key={selected.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               className="glass-strong p-8 rounded-xl">
               <h2 className="font-display text-lg font-semibold gradient-text mb-4">{selected.title}</h2>
-              {selected.summary || selected.notes ? (
-                <div className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                  {selected.summary || selected.notes}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No notes available for this lecture.</p>
-              )}
+              <div className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+                {selected.summary || selected.notes || "No notes available."}
+              </div>
             </motion.div>
           )}
         </div>
