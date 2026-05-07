@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, lectures, assignments, chatbot, transcription
+from app.routes import auth, lectures, assignments, chatbot, transcription, announcements
 from app.config import settings
 
 app = FastAPI(
@@ -22,6 +22,7 @@ app.include_router(lectures.router)
 app.include_router(assignments.router)
 app.include_router(chatbot.router)
 app.include_router(transcription.router, prefix="/api")
+app.include_router(announcements.router)
 
 
 @app.get("/")
