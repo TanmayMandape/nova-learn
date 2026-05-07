@@ -1,38 +1,33 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services.supabase_client import supabase
-from typing import Optional
-import datetime
+from datetime import datetime
+from typing import List
 
-router = APIRouter(prefix="/announcements", tags=["Announcements"])
+router = APIRouter()
+
+# In-memory storage - no database needed
+announcements_store = []
 
 
-class AnnouncementCreate(BaseModel):
+class Announcement(BaseModel):
     title: str
     message: str
-    priority: str = "normal"
     author: str = "Faculty"
 
 
 @router.post("/")
-async def create_announcement(data: AnnouncementCreate):
-    try:
-        result = supabase.table("announcements").insert({
-            "title": data.title,
-            "message": data.message,
-            "priority": data.priority,
-            "author": data.author,
-            "created_at": datetime.datetime.utcnow().isoformat(),
-        }).execute()
-        return {"success": True, "announcement": result.data[0] if result.data else {}}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+async def create_announcement(data: Announcement):
+    announcement = {
+        "id": len(announcements_store) + 1,
+        "title": data.title,
+        "message": data.message,
+        "author": data.author,
+        "created_at": datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
+    }
+    announcements_store.append(announcement)
+    return {"success": True, "announcement": announcement}
 
 
 @router.get("/")
 async def get_announcements():
-    try:
-        result = supabase.table("announcements").select("*").order("created_at", desc=True).limit(20).execute()
-        return {"announcements": result.data or []}
-    except Exception as e:
-        return {"announcements": [], "error": str(e)}
+    return {"announcements": list(reversed(announcements_store))}

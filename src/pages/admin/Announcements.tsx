@@ -10,7 +10,6 @@ const inputClass = "w-full px-4 py-3 rounded-xl bg-muted/50 border border-border
 const Announcements = () => {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [priority, setPriority] = useState<"normal" | "urgent">("normal");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<any[]>([]);
 
@@ -25,21 +24,21 @@ const Announcements = () => {
     if (!title.trim() || !message.trim()) { toast.error("Title and message are required"); return; }
     setSending(true);
     try {
-      const author = localStorage.getItem("user")
-        ? JSON.parse(localStorage.getItem("user")!).email
-        : "Faculty";
+      const author = (() => {
+        try { return JSON.parse(localStorage.getItem("user") || "{}").email || "Faculty"; }
+        catch { return "Faculty"; }
+      })();
       const res = await apiFetch("/announcements/", {
         method: "POST",
-        body: JSON.stringify({ title, message, priority, author }),
+        body: JSON.stringify({ title, message, author }),
       });
       if (res.success) {
         toast.success("Announcement sent to all students!");
         setSent(prev => [res.announcement, ...prev]);
         setTitle("");
         setMessage("");
-        setPriority("normal");
       } else {
-        toast.error(res.error || "Failed to send");
+        toast.error("Failed to send");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to send announcement");
@@ -54,7 +53,6 @@ const Announcements = () => {
       <p className="text-sm text-muted-foreground mb-8">Broadcast messages to your students</p>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Form */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-strong p-6 rounded-xl">
           <h2 className="font-display font-semibold mb-4">New Announcement</h2>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -69,21 +67,6 @@ const Announcements = () => {
                 placeholder="Write your announcement..." rows={4}
                 className={`${inputClass} resize-none`} />
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Priority</label>
-              <div className="flex gap-3">
-                {(["normal", "urgent"] as const).map(p => (
-                  <button key={p} type="button" onClick={() => setPriority(p)}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium border transition-all capitalize ${
-                      priority === p
-                        ? p === "urgent" ? "bg-destructive/20 text-destructive border-destructive/40" : "bg-primary/15 text-primary border-primary/30"
-                        : "bg-muted/30 text-muted-foreground border-border hover:border-primary/30"
-                    }`}>
-                    {p === "urgent" ? "🔴 Urgent" : "🟣 Normal"}
-                  </button>
-                ))}
-              </div>
-            </div>
             <GlowButton variant="primary" type="submit" disabled={sending}>
               <Send className="w-4 h-4" />
               {sending ? "Sending..." : "Send Announcement"}
@@ -91,7 +74,6 @@ const Announcements = () => {
           </form>
         </motion.div>
 
-        {/* Sent announcements */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="space-y-3">
           <h2 className="font-display font-semibold">Sent Announcements</h2>
           {sent.length === 0 ? (
@@ -104,15 +86,10 @@ const Announcements = () => {
                   <Megaphone className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="font-medium text-sm">{a.title}</h3>
-                    {a.priority === "urgent" && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/15 text-destructive font-medium">Urgent</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{a.message}</p>
+                  <h3 className="font-medium text-sm">{a.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{a.message}</p>
                   <span className="text-xs text-muted-foreground/60 mt-1 block">
-                    {a.author} • {a.created_at ? new Date(a.created_at).toLocaleString() : "just now"}
+                    {a.author} • {a.created_at}
                   </span>
                 </div>
               </div>
