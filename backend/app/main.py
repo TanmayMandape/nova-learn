@@ -22,7 +22,7 @@ app.include_router(lectures.router)
 app.include_router(assignments.router)
 app.include_router(chatbot.router)
 app.include_router(transcription.router, prefix="/api")
-app.include_router(announcements.router)
+app.include_router(announcements.router, prefix="/announcements")
 
 
 @app.get("/")
