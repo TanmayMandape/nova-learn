@@ -5,8 +5,12 @@ from app.services.ai_services import extract_keywords, generate_assignment_from_
 from app.models.schemas import AssignmentCreate, Assignment, SubmissionCreate, Submission
 from typing import List
 from pydantic import BaseModel
+from datetime import datetime
 
 router = APIRouter(tags=["Assignments"])
+
+# In-memory store for published assignments
+published_assignments = []
 
 
 class KeywordRequest(BaseModel):
@@ -91,3 +95,22 @@ async def get_submissions():
         return response.data
     except Exception:
         return []
+
+
+@router.post("/assignments/publish")
+async def publish_assignment(data: dict):
+    assignment = {
+        "id": len(published_assignments) + 1,
+        "title": data.get("title", "Assignment"),
+        "questions": data.get("questions", []),
+        "keywords": data.get("keywords", []),
+        "author": data.get("author", "Faculty"),
+        "created_at": datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
+    }
+    published_assignments.append(assignment)
+    return {"success": True, "assignment": assignment}
+
+
+@router.get("/assignments/published")
+async def get_published_assignments():
+    return {"assignments": list(reversed(published_assignments))}

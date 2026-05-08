@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, Send } from "lucide-react";
 import GlowButton from "@/components/GlowButton";
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 
 const DEMO_KEYWORDS = [
   "Machine Learning", "Neural Networks", "Gradient Descent", "Backpropagation",
@@ -33,6 +35,8 @@ const Assignments = () => {
   const [showQuestions, setShowQuestions] = useState(true);
   const [loadingAI, setLoadingAI] = useState(false);
   const [loadingCreate, setLoadingCreate] = useState(false);
+  const [published, setPublished] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const handleAISuggest = () => {
     setLoadingAI(true);
@@ -44,7 +48,33 @@ const Assignments = () => {
     e.preventDefault();
     setLoadingCreate(true);
     setShowQuestions(false);
+    setPublished(false);
     setTimeout(() => { setShowQuestions(true); setLoadingCreate(false); }, 2000);
+  };
+
+  const handlePublish = async () => {
+    setPublishing(true);
+    try {
+      const author = (() => {
+        try { return JSON.parse(localStorage.getItem("user") || "{}").email || "Faculty"; }
+        catch { return "Faculty"; }
+      })();
+      await apiFetch("/assignments/publish", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          questions: { multiple_choice_questions: DEMO_MCQ, short_answer_questions: DEMO_SAQ.map(q => ({ question: q })) },
+          keywords: DEMO_KEYWORDS,
+          author,
+        }),
+      });
+      setPublished(true);
+      toast.success("Assignment published! Students can now see it.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish");
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -66,7 +96,6 @@ const Assignments = () => {
                 rows={4} className={`${inputClass} resize-none`} />
             </div>
 
-            {/* Keywords */}
             <AnimatePresence>
               {showKeywords && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-2">
@@ -87,7 +116,6 @@ const Assignments = () => {
             </div>
           </form>
 
-          {/* Questions */}
           <AnimatePresence>
             {showQuestions && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 space-y-3">
@@ -107,6 +135,20 @@ const Assignments = () => {
                     <p className="font-medium">Q{i + 6}: {q}</p>
                   </div>
                 ))}
+
+                {/* Publish button */}
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-2">
+                  <GlowButton
+                    variant={published ? "secondary" : "primary"}
+                    type="button"
+                    onClick={handlePublish}
+                    disabled={published || publishing}
+                    className="w-full justify-center"
+                  >
+                    <Send className="w-4 h-4" />
+                    {publishing ? "Publishing..." : published ? "✅ Published" : "📤 Publish to Students"}
+                  </GlowButton>
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>

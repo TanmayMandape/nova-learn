@@ -75,6 +75,7 @@ const AnnouncementBell = ({ announcements }: { announcements: any[] }) => {
 const StudentOverview = () => {
   const navigate = useNavigate();
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [assignmentCount, setAssignmentCount] = useState(0);
   const lastCountRef = useRef(0);
 
   const fetchAnnouncements = useCallback(async (isPolling = false) => {
@@ -96,6 +97,12 @@ const StudentOverview = () => {
     return () => clearInterval(interval);
   }, [fetchAnnouncements]);
 
+  useEffect(() => {
+    apiFetch("/assignments/published")
+      .then(d => setAssignmentCount((d.assignments || []).length))
+      .catch(() => {});
+  }, []);
+
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -112,7 +119,7 @@ const StudentOverview = () => {
         {[
           { label: "Credits", value: "920", icon: Star, color: "text-primary" },
           { label: "Rank", value: "#5", icon: TrendingUp, color: "text-glow-cyan" },
-          { label: "Assignments", value: "1 pending", icon: ClipboardList, color: "text-secondary" },
+          { label: "Assignments", value: assignmentCount > 0 ? `${assignmentCount} pending` : "0 pending", icon: ClipboardList, color: "text-secondary" },
           { label: "Notes", value: "1 saved", icon: FileText, color: "text-accent" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
