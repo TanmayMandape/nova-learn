@@ -26,8 +26,9 @@ const LectureRecording = () => {
       });
       const transcribeData = await transcribeRes.json();
 
-      if (!transcribeData.transcript) {
-        alert("Could not transcribe audio. Please try again.");
+      if (!transcribeData.transcript || transcribeData.transcript.trim() === "") {
+        console.log("Transcription error:", transcribeData.error);
+        alert(`Transcription failed: ${transcribeData.error || "Unknown error"}. Please try again.`);
         setLoading(false);
         return;
       }
@@ -57,7 +58,10 @@ const LectureRecording = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const options = { mimeType: "audio/webm;codecs=opus" };
+      const mediaRecorder = MediaRecorder.isTypeSupported(options.mimeType)
+        ? new MediaRecorder(stream, options)
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
