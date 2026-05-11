@@ -5,7 +5,6 @@ import { useState, useRef } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Extend window type for Web Speech API
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -19,13 +18,15 @@ const LectureRecording = () => {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
+
   const recognitionRef = useRef<any>(null);
-  const finalTranscriptRef = useRef("");
+  const isRecordingRef = useRef(false);
+  const transcriptRef = useRef("");
 
   const startRecording = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Your browser doesn't support speech recognition. Please use Chrome.");
+      alert("Please use Chrome browser for recording.");
       return;
     }
 
@@ -33,53 +34,61 @@ const LectureRecording = () => {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-IN";
-    finalTranscriptRef.current = "";
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = "";
 
     recognition.onresult = (event: any) => {
-      let interim = "";
+      let interimTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscriptRef.current += event.results[i][0].transcript + " ";
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript + " ";
         } else {
-          interim += event.results[i][0].transcript;
+          interimTranscript += result[0].transcript;
         }
       }
-      setTranscript(finalTranscriptRef.current + interim);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
-      if (event.error === "not-allowed") {
-        alert("Microphone access denied. Please allow microphone in browser settings.");
-      }
+      const newTranscript = finalTranscript + interimTranscript;
+      setTranscript(newTranscript);
+      transcriptRef.current = newTranscript;
     };
 
     recognition.onend = () => {
-      // Auto-restart if still recording (handles browser timeout)
-      if (recognitionRef.current && isRecording) {
-        try { recognition.start(); } catch { /* already stopped */ }
+      // Auto-restart if still recording (Chrome stops after silence)
+      if (isRecordingRef.current) {
+        recognition.start();
       }
     };
 
+    recognition.onerror = (event: any) => {
+      if (event.error === "no-speech") {
+        // Ignore — just keep going
+        return;
+      }
+      console.error("Speech error:", event.error);
+    };
+
     recognitionRef.current = recognition;
+    isRecordingRef.current = true;
     recognition.start();
     setIsRecording(true);
     setTranscript("");
     setNotes("");
-    finalTranscriptRef.current = "";
+    transcriptRef.current = "";
+    finalTranscript = "";
   };
 
   const stopRecording = async () => {
+    isRecordingRef.current = false;
     if (recognitionRef.current) {
-      recognitionRef.current.onend = null; // prevent auto-restart
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
     setIsRecording(false);
 
-    const finalText = finalTranscriptRef.current.trim();
-    if (finalText.length < 10) {
-      alert("No speech detected. Please speak clearly and try again.");
+    const currentTranscript = transcriptRef.current;
+    if (!currentTranscript || currentTranscript.trim().length < 10) {
+      alert("Not enough speech detected. Please speak clearly and try again.");
       return;
     }
 
@@ -90,7 +99,7 @@ const LectureRecording = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim() || "Lecture " + new Date().toLocaleDateString(),
-          transcript: finalText,
+          transcript: currentTranscript.trim(),
           department: "Computer Science",
         }),
       });
@@ -99,6 +108,7 @@ const LectureRecording = () => {
         setNotes(data.summary || data.notes);
       }
     } catch (e) {
+      console.error("Save error:", e);
       alert("Could not save lecture. Please try again.");
     }
     setLoading(false);
@@ -108,10 +118,10 @@ const LectureRecording = () => {
     setTranscript("");
     setNotes("");
     setTitle("");
-    finalTranscriptRef.current = "";
+    transcriptRef.current = "";
   };
 
-  const isDone = !isRecording && !loading && transcript.length > 0;
+  const isDone = !isRecording && !loading && transcript.trim().length > 0;
 
   return (
     <div>
@@ -145,14 +155,14 @@ const LectureRecording = () => {
         <AnimatePresence mode="wait">
           {isRecording && (
             <motion.div key="rec" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="flex items-center justify-center gap-2 mb-6">
+              className="flex items-center justify-center gap-2 mb-4">
               <Radio className="w-4 h-4 text-destructive animate-pulse" />
               <span className="text-sm font-medium text-destructive">Recording in progress...</span>
             </motion.div>
           )}
           {loading && (
             <motion.div key="load" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="mb-6">
+              className="mb-4">
               <p className="text-sm text-primary animate-pulse">Generating AI notes... please wait</p>
             </motion.div>
           )}
@@ -161,7 +171,8 @@ const LectureRecording = () => {
         {/* Live transcript while recording */}
         {isRecording && transcript && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="mb-6 text-left p-4 rounded-xl bg-muted/30 border border-border max-h-40 overflow-y-auto">
+            className="mb-6 text-left p-4 rounded-xl bg-muted/30 border border-border max-h-48 overflow-y-auto">
+            <p className="text-xs text-muted-foreground/60 mb-1 font-medium">Live transcript:</p>
             <p className="text-xs text-muted-foreground leading-relaxed">{transcript}</p>
           </motion.div>
         )}
@@ -185,7 +196,11 @@ const LectureRecording = () => {
         )}
 
         <p className="text-xs text-muted-foreground mt-4">
-          {isRecording ? "Speak clearly — transcript appears in real time" : loading ? "Processing..." : "Use Chrome for best results"}
+          {isRecording
+            ? "Speak clearly — transcript appears in real time"
+            : loading
+            ? "Processing with Groq AI..."
+            : "Use Chrome for best results"}
         </p>
 
         {/* Results */}
