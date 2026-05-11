@@ -8,7 +8,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 
 def get_model():
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel("gemini-2.5-flash")
 
 
 def safe_gemini_call(prompt: str) -> str:

@@ -32,7 +32,7 @@ async def transcribe_audio(request: Request):
 
         for attempt in range(3):
             try:
-                model = genai.GenerativeModel("gemini-2.0-flash")
+                model = genai.GenerativeModel("gemini-2.5-flash")
                 response = model.generate_content([
                     {
                         "inline_data": {
