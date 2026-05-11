@@ -23,7 +23,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
             audio_b64 = base64.b64encode(audio_bytes).decode()
             print(f"Base64 length: {len(audio_b64)}")
 
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.0-flash")
             response = model.generate_content([
                 {
                     "inline_data": {
