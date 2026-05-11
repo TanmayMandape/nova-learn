@@ -6,5 +6,4 @@ pydantic
 pydantic-settings
 python-multipart
 httpx
-google-generativeai
-google-genai
+groq

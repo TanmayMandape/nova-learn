@@ -5,105 +5,113 @@ import { useState, useRef } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+// Extend window type for Web Speech API
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 const LectureRecording = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const finalTranscriptRef = useRef("");
 
-  const sendAudioToBackend = async (audioBlob: Blob) => {
+  const startRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Your browser doesn't support speech recognition. Please use Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN";
+    finalTranscriptRef.current = "";
+
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += event.results[i][0].transcript + " ";
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setTranscript(finalTranscriptRef.current + interim);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      if (event.error === "not-allowed") {
+        alert("Microphone access denied. Please allow microphone in browser settings.");
+      }
+    };
+
+    recognition.onend = () => {
+      // Auto-restart if still recording (handles browser timeout)
+      if (recognitionRef.current && isRecording) {
+        try { recognition.start(); } catch { /* already stopped */ }
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+    setTranscript("");
+    setNotes("");
+    finalTranscriptRef.current = "";
+  };
+
+  const stopRecording = async () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null; // prevent auto-restart
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+
+    const finalText = finalTranscriptRef.current.trim();
+    if (finalText.length < 10) {
+      alert("No speech detected. Please speak clearly and try again.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "recording.webm");
-
-      const transcribeRes = await fetch(`${API}/api/transcribe`, {
-        method: "POST",
-        body: formData,
-      });
-      const transcribeData = await transcribeRes.json();
-
-      if (!transcribeData.transcript || transcribeData.transcript.trim() === "") {
-        console.log("Transcription error:", transcribeData.error);
-        alert(`Transcription failed: ${transcribeData.error || "Unknown error"}. Please try again.`);
-        setLoading(false);
-        return;
-      }
-
-      setTranscript(transcribeData.transcript);
-
       const lectureRes = await fetch(`${API}/lectures/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim() || "Lecture " + new Date().toLocaleDateString(),
-          transcript: transcribeData.transcript,
+          transcript: finalText,
           department: "Computer Science",
         }),
       });
-      const lectureData = await lectureRes.json();
-
-      if (lectureData.summary || lectureData.notes) {
-        setNotes(lectureData.summary || lectureData.notes);
+      const data = await lectureRes.json();
+      if (data.summary || data.notes) {
+        setNotes(data.summary || data.notes);
       }
-    } catch (err) {
-      alert("Something went wrong. Please try again.");
+    } catch (e) {
+      alert("Could not save lecture. Please try again.");
     }
     setLoading(false);
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const options = { mimeType: "audio/webm;codecs=opus" };
-      const mediaRecorder = MediaRecorder.isTypeSupported(options.mimeType)
-        ? new MediaRecorder(stream, options)
-        : new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm;codecs=opus" });
-        console.log("Audio blob size:", audioBlob.size);
-        if (audioBlob.size < 1000) {
-          alert("Recording too short or empty. Please record at least 5 seconds.");
-          setLoading(false);
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-        stream.getTracks().forEach(track => track.stop());
-        await sendAudioToBackend(audioBlob);
-      };
-
-      mediaRecorder.start(1000);
-      setIsRecording(true);
-      setTranscript("");
-      setNotes("");
-    } catch (err) {
-      alert("Microphone access denied. Please allow microphone and try again.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
   };
 
   const recordAgain = () => {
     setTranscript("");
     setNotes("");
     setTitle("");
+    finalTranscriptRef.current = "";
   };
+
+  const isDone = !isRecording && !loading && transcript.length > 0;
 
   return (
     <div>
@@ -133,7 +141,7 @@ const LectureRecording = () => {
           ))}
         </div>
 
-        {/* Status messages */}
+        {/* Status */}
         <AnimatePresence mode="wait">
           {isRecording && (
             <motion.div key="rec" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -145,13 +153,21 @@ const LectureRecording = () => {
           {loading && (
             <motion.div key="load" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="mb-6">
-              <p className="text-sm text-primary animate-pulse">Transcribing audio with AI... please wait</p>
+              <p className="text-sm text-primary animate-pulse">Generating AI notes... please wait</p>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Live transcript while recording */}
+        {isRecording && transcript && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="mb-6 text-left p-4 rounded-xl bg-muted/30 border border-border max-h-40 overflow-y-auto">
+            <p className="text-xs text-muted-foreground leading-relaxed">{transcript}</p>
+          </motion.div>
+        )}
+
         {/* Buttons */}
-        {!loading && !transcript && (
+        {!loading && !isDone && (
           <GlowButton
             onClick={isRecording ? stopRecording : startRecording}
             variant={isRecording ? "secondary" : "primary"}
@@ -162,23 +178,19 @@ const LectureRecording = () => {
           </GlowButton>
         )}
 
-        {transcript && !loading && (
+        {isDone && !loading && (
           <GlowButton onClick={recordAgain} variant="secondary" className="px-10 py-4 text-base">
             <Mic className="w-5 h-5" /> Record Again
           </GlowButton>
         )}
 
-        <p className="text-xs text-muted-foreground mt-6">
-          {isRecording
-            ? "Speak clearly — click Stop when done"
-            : loading
-            ? "Processing your audio..."
-            : "Click Start Recording to begin"}
+        <p className="text-xs text-muted-foreground mt-4">
+          {isRecording ? "Speak clearly — transcript appears in real time" : loading ? "Processing..." : "Use Chrome for best results"}
         </p>
 
         {/* Results */}
         <AnimatePresence>
-          {transcript && !loading && (
+          {isDone && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 space-y-4">
               <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
                 <CheckCircle2 className="w-5 h-5 text-green-500" />

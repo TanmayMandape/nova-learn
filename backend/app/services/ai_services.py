@@ -1,31 +1,20 @@
-import google.generativeai as genai
 import os
 import json
-import time
+from groq import Groq
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-
-
-def get_model():
-    return genai.GenerativeModel("gemini-2.5-flash")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def safe_gemini_call(prompt: str) -> str:
-    for attempt in range(3):
-        try:
-            model = get_model()
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "EXHAUSTED" in error_str:
-                if attempt < 2:
-                    time.sleep(15)
-                    continue
-                return "QUOTA_ERROR"
-            return f"ERROR: {error_str}"
-    return "QUOTA_ERROR"
+def safe_groq_call(prompt: str) -> str:
+    try:
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"ERROR: {str(e)}"
 
 
 def generate_notes(transcript: str) -> str:
@@ -33,20 +22,18 @@ def generate_notes(transcript: str) -> str:
 Use numbered points. Keep it concise and educational.
 Transcript: {transcript}
 Return only the notes, no extra text."""
-    result = safe_gemini_call(prompt)
-    if result == "QUOTA_ERROR":
-        return "AI is busy. Please try again in 1 minute."
+    result = safe_groq_call(prompt)
+    if "ERROR" in result:
+        return "Could not generate notes. Please try again."
     return result
 
 
 def extract_keywords(transcript: str) -> list:
-    prompt = f"""Extract exactly 10 most important keywords or topics from this lecture transcript.
-Return ONLY a valid JSON array like this: ["keyword1", "keyword2", "keyword3"]
-No explanation. No markdown. Just the JSON array.
+    prompt = f"""Extract exactly 10 most important keywords from this lecture transcript.
+Return ONLY a valid JSON array like: ["keyword1", "keyword2"]
+No explanation. No markdown. Just JSON array.
 Transcript: {transcript}"""
-    result = safe_gemini_call(prompt)
-    if result == "QUOTA_ERROR":
-        return ["AI busy", "try again", "in 1 minute"]
+    result = safe_groq_call(prompt)
     try:
         cleaned = result.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(cleaned)
@@ -56,45 +43,31 @@ Transcript: {transcript}"""
 
 def generate_assignment(keywords: list, transcript: str) -> dict:
     keywords_str = ", ".join(keywords)
-    prompt = f"""Create exactly 10 assignment questions based on these keywords: {keywords_str}
-And this transcript: {transcript}
-Return ONLY valid JSON in this exact format, no markdown, no extra text:
-{{"mcq": [{{"question": "question text here","options": ["A) option1", "B) option2", "C) option3", "D) option4"],"answer": "A) option1"}}],"short_answer": [{{"question": "question text here"}}]}}
-mcq must have exactly 5 questions.
-short_answer must have exactly 5 questions."""
-    result = safe_gemini_call(prompt)
-    if result == "QUOTA_ERROR":
-        return {"mcq": [], "short_answer": [], "error": "AI busy. Try again in 1 minute."}
+    prompt = f"""Create exactly 10 assignment questions based on keywords: {keywords_str}
+And transcript: {transcript}
+Return ONLY valid JSON, no markdown:
+{{"mcq": [{{"question": "question here","options": ["A) opt1", "B) opt2", "C) opt3", "D) opt4"],"answer": "A) opt1"}}],"short_answer": [{{"question": "question here"}}]}}
+mcq must have exactly 5. short_answer must have exactly 5."""
+    result = safe_groq_call(prompt)
     try:
         cleaned = result.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(cleaned)
     except Exception:
-        return {"mcq": [], "short_answer": [], "error": "Could not parse questions. Try again."}
+        return {"mcq": [], "short_answer": [], "error": "Could not parse. Try again."}
 
 
 def generate_assignment_from_transcript(transcript: str) -> dict:
-    """Single-call version used by the generate endpoint."""
-    prompt = f"""Given this lecture transcript: {transcript}
-Generate exactly 10 questions: 5 MCQs and 5 short answer questions.
-Return ONLY valid JSON, no markdown:
-{{"multiple_choice_questions": [{{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}}], "short_answer_questions": [{{"question": "..."}}]}}"""
-    result = safe_gemini_call(prompt)
-    if result == "QUOTA_ERROR":
-        return {"multiple_choice_questions": [], "short_answer_questions": [], "error": "AI busy. Try again in 1 minute."}
-    try:
-        cleaned = result.strip().replace("```json", "").replace("```", "").strip()
-        return json.loads(cleaned)
-    except Exception:
-        return {"multiple_choice_questions": [], "short_answer_questions": [], "error": "Parse error. Try again."}
+    keywords = extract_keywords(transcript)
+    return generate_assignment(keywords, transcript)
 
 
 def chatbot_response(question: str, transcript: str = "") -> str:
-    prompt = f"""You are a classroom assistant. Answer the student's question using ONLY the lecture transcript below.
-If the answer is not in the transcript, say exactly: "This topic was not covered in today's lecture."
-Keep answer clear and under 100 words.
-Lecture Transcript: {transcript}
-Student Question: {question}"""
-    result = safe_gemini_call(prompt)
-    if result == "QUOTA_ERROR":
-        return "AI is busy. Please try again in 1 minute."
+    prompt = f"""You are a classroom assistant. Answer using ONLY this transcript.
+If answer not in transcript say: "This topic was not covered in today's lecture."
+Keep answer under 100 words.
+Transcript: {transcript}
+Question: {question}"""
+    result = safe_groq_call(prompt)
+    if "ERROR" in result:
+        return "Could not get answer. Please try again."
     return result

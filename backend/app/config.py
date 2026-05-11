@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
     ALLOWED_ORIGINS: List[str] = ["http://localhost:8080"]
     DEBUG: bool = False
 
