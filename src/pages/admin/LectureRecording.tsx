@@ -70,12 +70,20 @@ const LectureRecording = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm;codecs=opus" });
+        console.log("Audio blob size:", audioBlob.size);
+        if (audioBlob.size < 1000) {
+          alert("Recording too short or empty. Please record at least 5 seconds.");
+          setLoading(false);
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
         stream.getTracks().forEach(track => track.stop());
         await sendAudioToBackend(audioBlob);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
       setIsRecording(true);
       setTranscript("");
       setNotes("");
