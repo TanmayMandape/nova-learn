@@ -8,7 +8,6 @@ import { toast } from "sonner";
 
 const navItems = [
   { icon: BookOpen, label: "Overview", path: "/student" },
-  { icon: FileText, label: "Lecture Transcript", path: "/student/transcript" },
   { icon: Zap, label: "AI Notes", path: "/student/notes" },
   { icon: ClipboardList, label: "Assignments", path: "/student/assignments" },
   { icon: MessageSquare, label: "AI Doubt Solver", path: "/student/chatbot" },

@@ -11,7 +11,6 @@ import Assignments from "./pages/admin/Assignments";
 import Announcements from "./pages/admin/Announcements";
 import StudentCredits from "./pages/admin/StudentCredits";
 import StudentDashboard from "./pages/student/StudentDashboard";
-import Transcript from "./pages/student/Transcript";
 import AINotes from "./pages/student/AINotes";
 import StudentAssignments from "./pages/student/StudentAssignments";
 import Chatbot from "./pages/student/Chatbot";
@@ -36,7 +35,6 @@ const App = () => (
             <Route path="credits" element={<StudentCredits />} />
           </Route>
           <Route path="/student" element={<StudentDashboard />}>
-            <Route path="transcript" element={<Transcript />} />
             <Route path="notes" element={<AINotes />} />
             <Route path="assignments" element={<StudentAssignments />} />
             <Route path="chatbot" element={<Chatbot />} />
