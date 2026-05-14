@@ -2,51 +2,41 @@ import { motion } from "framer-motion";
 import { Send, Bot, User } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
-const DEMO_QA: Record<string, string> = {
-  "supervised learning": "Supervised learning is where the model learns from labeled data to predict outcomes on new data.",
-  "overfitting": "Overfitting occurs when a model performs well on training data but poorly on new unseen data.",
-  "gradient descent": "Gradient descent is an optimization algorithm used to minimize the loss function during training.",
-  "what did we learn": "Today we covered AI and ML fundamentals including supervised learning, neural networks, gradient descent, backpropagation, overfitting, NLP and computer vision.",
-  "neural network": "Neural networks are computational models inspired by the biological structure of the human brain, consisting of layers of interconnected nodes.",
-  "backpropagation": "Backpropagation is the method used to calculate gradients and update the weights of a neural network during training.",
-  "cross-validation": "Cross-validation is a technique used to evaluate how well a model generalizes to independent datasets.",
-  "nlp": "Natural Language Processing (NLP) enables machines to understand and process human language. It was introduced as a major application of deep learning.",
-  "computer vision": "Computer vision is an AI field focused on enabling machines to interpret and understand images and videos.",
-  "underfitting": "Underfitting occurs when a model is too simple to capture the underlying patterns in the data.",
-};
-
-function getAnswer(input: string): string {
-  const lower = input.toLowerCase();
-  for (const [key, val] of Object.entries(DEMO_QA)) {
-    if (lower.includes(key)) return val;
-  }
-  return "Based on today's lecture, this topic relates to AI and Machine Learning fundamentals. Please refer to the AI notes for detailed information.";
-}
-
-const INITIAL_MESSAGES = [
-  { role: "bot" as const, text: "Hello! I'm your AI Doubt Solver. Ask me anything about today's lecture on AI & Machine Learning!" },
-];
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Chatbot = () => {
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState([
+    { role: "bot" as const, text: "Hello! I'm your AI Doubt Solver. Ask me anything about today's lecture!" },
+  ]);
   const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
+  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, typing]);
+  }, [messages, loading]);
 
-  const send = () => {
-    if (!input.trim() || typing) return;
+  const send = async () => {
+    if (!input.trim() || loading) return;
     const question = input.trim();
     setMessages(prev => [...prev, { role: "user", text: question }]);
     setInput("");
-    setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
-      setMessages(prev => [...prev, { role: "bot", text: getAnswer(question) }]);
-    }, 1000);
+    setLoading(true);
+
+    try {
+      const transcript = localStorage.getItem("latestTranscript") || "";
+      const res = await fetch(`${API}/chatbot/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, query: question, transcript }),
+      });
+      const data = await res.json();
+      const answer = data.response || data.answer || "Could not get answer. Please try again.";
+      setMessages(prev => [...prev, { role: "bot", text: answer }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "bot", text: "Connection error. Please try again." }]);
+    }
+    setLoading(false);
   };
 
   return (
@@ -67,7 +57,7 @@ const Chatbot = () => {
               </div>
             </motion.div>
           ))}
-          {typing && (
+          {loading && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/20">
                 <Bot className="w-4 h-4 text-primary" />
@@ -89,9 +79,9 @@ const Chatbot = () => {
               onKeyDown={e => e.key === "Enter" && send()}
               placeholder="Ask anything from today's lecture…"
               className="flex-1 px-4 py-3 rounded-xl bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 transition-all"
-              disabled={typing} />
+              disabled={loading} />
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              onClick={send} disabled={typing}
+              onClick={send} disabled={loading}
               className="px-4 py-3 rounded-xl bg-primary text-primary-foreground glow-btn disabled:opacity-50">
               <Send className="w-4 h-4" />
             </motion.button>

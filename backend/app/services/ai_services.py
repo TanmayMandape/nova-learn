@@ -63,7 +63,7 @@ def generate_assignment_from_transcript(transcript: str) -> dict:
 
 def chatbot_response(question: str, transcript: str = "") -> str:
     prompt = f"""You are a classroom assistant. Answer using ONLY this transcript.
-If answer not in transcript say: "This topic was not covered in today's lecture."
+If answer not in transcript say: "This topic was not covered in today's lecture. Please refer to your course materials or ask your teacher."
 Keep answer under 100 words.
 Transcript: {transcript}
 Question: {question}"""

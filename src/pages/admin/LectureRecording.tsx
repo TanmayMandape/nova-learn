@@ -51,6 +51,7 @@ const LectureRecording = () => {
       const newTranscript = finalTranscript + interimTranscript;
       setTranscript(newTranscript);
       transcriptRef.current = newTranscript;
+      localStorage.setItem("latestTranscript", newTranscript);
     };
 
     recognition.onend = () => {
