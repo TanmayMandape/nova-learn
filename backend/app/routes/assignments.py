@@ -114,3 +114,31 @@ async def publish_assignment(data: dict):
 @router.get("/assignments/published")
 async def get_published_assignments():
     return {"assignments": list(reversed(published_assignments))}
+
+
+# In-memory submissions store
+submissions_store = []
+
+
+@router.post("/assignments/submit")
+async def submit_assignment(data: dict):
+    from datetime import datetime
+    submission = {
+        "id": len(submissions_store) + 1,
+        "assignment_id": data.get("assignment_id"),
+        "student_id": data.get("student_id", "student"),
+        "answers": data.get("answers", []),
+        "submitted_at": datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
+    }
+    submissions_store.append(submission)
+    # Also try Supabase
+    try:
+        supabase.table("submissions").insert({
+            "assignment_id": str(data.get("assignment_id")),
+            "student_id": data.get("student_id", "student"),
+            "content": str(data.get("answers", [])),
+            "status": "submitted",
+        }).execute()
+    except Exception:
+        pass
+    return {"success": True, "submission": submission}
