@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Radio, CheckCircle2 } from "lucide-react";
+import { Mic, MicOff, Radio, CheckCircle2, BookOpen, GraduationCap } from "lucide-react";
 import GlowButton from "@/components/GlowButton";
-import { useState, useRef } from "react";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { useState, useRef, useEffect } from "react";
+import { apiFetch, API } from "@/lib/api";
+import { getActiveClassroom, ClassroomInfo } from "@/lib/auth";
+import { toast } from "sonner";
 
 declare global {
   interface Window {
@@ -13,6 +14,7 @@ declare global {
 }
 
 const LectureRecording = () => {
+  const [activeClass, setActiveClass] = useState<ClassroomInfo | null>(getActiveClassroom());
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
@@ -23,10 +25,18 @@ const LectureRecording = () => {
   const isRecordingRef = useRef(false);
   const transcriptRef = useRef("");
 
+  useEffect(() => {
+    const handleClassChange = (e: any) => {
+      setActiveClass(e.detail);
+    };
+    window.addEventListener("classroomChanged", handleClassChange);
+    return () => window.removeEventListener("classroomChanged", handleClassChange);
+  }, []);
+
   const startRecording = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Please use Chrome browser for recording.");
+      alert("Please use Google Chrome for voice lecture recording.");
       return;
     }
 
@@ -51,22 +61,19 @@ const LectureRecording = () => {
       const newTranscript = finalTranscript + interimTranscript;
       setTranscript(newTranscript);
       transcriptRef.current = newTranscript;
-      localStorage.setItem("latestTranscript", newTranscript);
     };
 
     recognition.onend = () => {
-      // Auto-restart if still recording (Chrome stops after silence)
       if (isRecordingRef.current) {
-        recognition.start();
+        try {
+          recognition.start();
+        } catch {}
       }
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error === "no-speech") {
-        // Ignore — just keep going
-        return;
-      }
-      console.error("Speech error:", event.error);
+      if (event.error === "no-speech") return;
+      console.warn("Speech recognition error:", event.error);
     };
 
     recognitionRef.current = recognition;
@@ -89,30 +96,33 @@ const LectureRecording = () => {
 
     const currentTranscript = transcriptRef.current;
     if (!currentTranscript || currentTranscript.trim().length < 10) {
-      alert("Not enough speech detected. Please speak clearly and try again.");
+      toast.error("Not enough speech detected. Please speak clearly into your microphone.");
       return;
     }
 
     setLoading(true);
     try {
-      const lectureRes = await fetch(`${API}/lectures/`, {
+      const lectureTitle = title.trim() || `Lecture: ${activeClass?.name || "Topic"} — ${new Date().toLocaleDateString()}`;
+      const savedLecture = await apiFetch("/lectures/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: title.trim() || "Lecture " + new Date().toLocaleDateString(),
+          title: lectureTitle,
           transcript: currentTranscript.trim(),
-          department: "Computer Science",
+          classroom_id: activeClass?.id || null,
+          department: activeClass?.subject || "Computer Science",
         }),
       });
-      const data = await lectureRes.json();
-      if (data.summary || data.notes) {
-        setNotes(data.summary || data.notes);
+
+      if (savedLecture.summary || savedLecture.notes) {
+        setNotes(savedLecture.summary || savedLecture.notes);
       }
-    } catch (e) {
+      toast.success("Lecture recorded & AI notes generated!");
+    } catch (e: any) {
       console.error("Save error:", e);
-      alert("Could not save lecture. Please try again.");
+      toast.error("Could not save lecture. " + (e.message || ""));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const recordAgain = () => {
@@ -126,107 +136,119 @@ const LectureRecording = () => {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold mb-1">Lecture Recording</h1>
-      <p className="text-sm text-muted-foreground mb-8">Record and transcribe your lectures in real-time</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Lecture Recording</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Record voice lectures in real-time. Speech is auto-transcribed and summarized.
+          </p>
+        </div>
+        {activeClass && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
+            <GraduationCap className="w-4 h-4" />
+            <span>Target: {activeClass.name}</span>
+          </div>
+        )}
+      </div>
 
-      <div className="glass-strong p-8 rounded-2xl max-w-2xl mx-auto text-center">
+      <div className="glass-strong p-8 rounded-2xl max-w-2xl mx-auto text-center border border-border">
         {/* Title input */}
-        <div className="mb-8">
+        <div className="mb-6">
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter Lecture Title (e.g. Introduction to AI)"
-            className="w-full px-4 py-3 rounded-xl bg-muted/50 border border-border text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all text-center"
+            placeholder="Enter Lecture Title (e.g. Relational Algebra & SQL Basics)"
+            className="w-full px-4 py-3 rounded-xl bg-muted/50 border border-border text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all text-center placeholder:text-muted-foreground/40 font-medium"
             disabled={isRecording || loading}
           />
         </div>
 
-        {/* Waveform */}
-        <div className="flex items-center justify-center gap-1 h-16 mb-6">
+        {/* Waveform Animation */}
+        <div className="flex items-center justify-center gap-1.5 h-16 mb-6">
           {Array.from({ length: 24 }).map((_, i) => (
-            <motion.div key={i} className="w-1 rounded-full bg-primary"
-              animate={isRecording ? { height: [8, Math.random() * 40 + 8, 8] } : { height: 8 }}
-              transition={isRecording ? { duration: 0.5 + Math.random() * 0.5, repeat: Infinity, repeatType: "reverse", delay: i * 0.05 } : {}}
-              style={{ height: 8 }} />
+            <motion.div
+              key={i}
+              className={`w-1 rounded-full ${isRecording ? "bg-primary" : "bg-muted-foreground/20"}`}
+              animate={isRecording ? { height: [8, Math.random() * 44 + 8, 8] } : { height: 8 }}
+              transition={
+                isRecording
+                  ? { duration: 0.4 + Math.random() * 0.4, repeat: Infinity, repeatType: "reverse", delay: i * 0.04 }
+                  : {}
+              }
+              style={{ height: 8 }}
+            />
           ))}
         </div>
 
-        {/* Status */}
-        <AnimatePresence mode="wait">
-          {isRecording && (
-            <motion.div key="rec" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="flex items-center justify-center gap-2 mb-4">
-              <Radio className="w-4 h-4 text-destructive animate-pulse" />
-              <span className="text-sm font-medium text-destructive">Recording in progress...</span>
-            </motion.div>
+        {/* Recording status badge */}
+        <div className="mb-8">
+          {isRecording ? (
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-destructive/15 text-destructive text-xs font-semibold animate-pulse border border-destructive/20">
+              <Radio className="w-3.5 h-3.5" /> Recording Lecture Live...
+            </span>
+          ) : loading ? (
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/15 text-primary text-xs font-semibold border border-primary/20">
+              Generating Structured AI Notes...
+            </span>
+          ) : isDone ? (
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/15 text-green-500 text-xs font-semibold border border-green-500/20">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Lecture Saved & Summarized
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Click the microphone to start recording</span>
           )}
-          {loading && (
-            <motion.div key="load" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="mb-4">
-              <p className="text-sm text-primary animate-pulse">Generating AI notes... please wait</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
 
-        {/* Live transcript while recording */}
-        {isRecording && transcript && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="mb-6 text-left p-4 rounded-xl bg-muted/30 border border-border max-h-48 overflow-y-auto">
-            <p className="text-xs text-muted-foreground/60 mb-1 font-medium">Live transcript:</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">{transcript}</p>
-          </motion.div>
-        )}
-
-        {/* Buttons */}
-        {!loading && !isDone && (
-          <GlowButton
+        {/* Record button */}
+        <div className="flex justify-center mb-8">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={isRecording ? stopRecording : startRecording}
-            variant={isRecording ? "secondary" : "primary"}
-            className="px-10 py-4 text-base"
+            disabled={loading}
+            className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl ${
+              isRecording
+                ? "bg-destructive text-white glow-rose animate-pulse"
+                : "bg-primary text-primary-foreground glow-btn"
+            } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            {isRecording ? "Stop Recording" : "Start Recording"}
-          </GlowButton>
+            {isRecording ? <MicOff className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
+          </motion.button>
+        </div>
+
+        {/* Action Buttons */}
+        {isDone && (
+          <div className="flex justify-center gap-3 mb-6">
+            <GlowButton variant="secondary" onClick={recordAgain}>
+              Record Another Lecture
+            </GlowButton>
+          </div>
         )}
 
-        {isDone && !loading && (
-          <GlowButton onClick={recordAgain} variant="secondary" className="px-10 py-4 text-base">
-            <Mic className="w-5 h-5" /> Record Again
-          </GlowButton>
+        {/* Live Transcript View */}
+        {transcript && (
+          <div className="text-left mt-6 pt-6 border-t border-border">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Live Speech Transcription
+            </h3>
+            <div className="p-4 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground max-h-48 overflow-y-auto leading-relaxed">
+              {transcript}
+            </div>
+          </div>
         )}
 
-        <p className="text-xs text-muted-foreground mt-4">
-          {isRecording
-            ? "Speak clearly — transcript appears in real time"
-            : loading
-            ? "Processing with Groq AI..."
-            : "Use Chrome for best results"}
-        </p>
-
-        {/* Results */}
-        <AnimatePresence>
-          {isDone && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 space-y-4">
-              <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-semibold text-green-500">Lecture Recorded Successfully</span>
-              </div>
-
-              <div className="text-left p-4 rounded-xl bg-muted/30 border border-border">
-                <h3 className="text-sm font-semibold mb-2 text-primary">Transcript</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{transcript}</p>
-              </div>
-
-              {notes && (
-                <div className="text-left p-4 rounded-xl bg-primary/5 border border-primary/20">
-                  <h3 className="text-sm font-semibold mb-2 text-primary">AI Notes</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{notes}</p>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* AI Notes View */}
+        {notes && (
+          <div className="text-left mt-6 pt-6 border-t border-border">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4" /> AI Generated Lecture Notes
+            </h3>
+            <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 text-xs leading-relaxed text-foreground whitespace-pre-line">
+              {notes}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

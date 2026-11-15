@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, lectures, assignments, chatbot, transcription, announcements
+from app.routes import auth, classrooms, materials, lectures, assignments, chatbot, transcription, announcements
 from app.config import settings
 
 app = FastAPI(
@@ -18,6 +18,8 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(classrooms.router)
+app.include_router(materials.router)
 app.include_router(lectures.router)
 app.include_router(assignments.router)
 app.include_router(chatbot.router)
@@ -27,7 +29,20 @@ app.include_router(announcements.router, prefix="/announcements")
 
 @app.get("/")
 async def root():
-    return {"status": "running", "version": "1.0.0"}
+    return {
+        "status": "running",
+        "system": "AI-Powered Classroom Assistant",
+        "version": "1.0.0",
+        "modules": [
+            "classrooms",
+            "enrollments",
+            "pdf_ocr_rag",
+            "lectures",
+            "assignments",
+            "chatbot",
+            "analytics"
+        ]
+    }
 
 
 if __name__ == "__main__":

@@ -7,11 +7,14 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import LectureRecording from "./pages/admin/LectureRecording";
+import CourseMaterials from "./pages/admin/CourseMaterials";
 import Assignments from "./pages/admin/Assignments";
 import Announcements from "./pages/admin/Announcements";
 import StudentCredits from "./pages/admin/StudentCredits";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import AINotes from "./pages/student/AINotes";
+import StudentAnnouncements from "./pages/student/StudentAnnouncements";
+import PDFExplainer from "./pages/student/PDFExplainer";
 import StudentAssignments from "./pages/student/StudentAssignments";
 import Chatbot from "./pages/student/Chatbot";
 import Profile from "./pages/student/Profile";
@@ -30,12 +33,15 @@ const App = () => (
           <Route path="/login/:role" element={<Login />} />
           <Route path="/admin" element={<AdminDashboard />}>
             <Route path="recording" element={<LectureRecording />} />
+            <Route path="materials" element={<CourseMaterials />} />
             <Route path="assignments" element={<Assignments />} />
             <Route path="announcements" element={<Announcements />} />
             <Route path="credits" element={<StudentCredits />} />
           </Route>
           <Route path="/student" element={<StudentDashboard />}>
+            <Route path="announcements" element={<StudentAnnouncements />} />
             <Route path="notes" element={<AINotes />} />
+            <Route path="explainer" element={<PDFExplainer />} />
             <Route path="assignments" element={<StudentAssignments />} />
             <Route path="chatbot" element={<Chatbot />} />
             <Route path="profile" element={<Profile />} />

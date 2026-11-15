@@ -1,28 +1,61 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, MessageSquare, ClipboardList, User, Zap, BookOpen, Star, TrendingUp, CheckCircle2, Bell } from "lucide-react";
+import {
+  FileText,
+  MessageSquare,
+  ClipboardList,
+  User,
+  Zap,
+  BookOpen,
+  Star,
+  TrendingUp,
+  CheckCircle2,
+  Bell,
+  Megaphone,
+  GraduationCap,
+  Plus,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import GlowButton from "@/components/GlowButton";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import {
+  getDemoUser,
+  getActiveClassroom,
+  setActiveClassroom,
+  ClassroomInfo,
+} from "@/lib/auth";
 import { toast } from "sonner";
 
 const navItems = [
   { icon: BookOpen, label: "Overview", path: "/student" },
-  { icon: Zap, label: "AI Notes", path: "/student/notes" },
-  { icon: ClipboardList, label: "Assignments", path: "/student/assignments" },
+  { icon: Megaphone, label: "Announcements", path: "/student/announcements" },
+  { icon: Zap, label: "AI Lecture Notes", path: "/student/notes" },
+  { icon: FileText, label: "PDF AI Explainer", path: "/student/explainer" },
+  { icon: ClipboardList, label: "Assignments & Quizzes", path: "/student/assignments" },
   { icon: MessageSquare, label: "AI Doubt Solver", path: "/student/chatbot" },
-  { icon: User, label: "Profile", path: "/student/profile" },
+  { icon: User, label: "My Learning Profile", path: "/student/profile" },
 ];
 
-// Bell icon with badge + dropdown — rendered inside the overview
-const AnnouncementBell = ({ announcements }: { announcements: any[] }) => {
+const AnnouncementBell = ({
+  announcements,
+  onViewAll,
+}: {
+  announcements: any[];
+  onViewAll?: () => void;
+}) => {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
 
-  const recent = announcements.filter(a => {
-    const t = new Date(a.created_at).getTime();
-    return Date.now() - t < 24 * 60 * 60 * 1000;
+  const recent = announcements.filter((a) => {
+    try {
+      const t = new Date(a.created_at).getTime();
+      return Date.now() - t < 48 * 60 * 60 * 1000;
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
@@ -35,11 +68,14 @@ const AnnouncementBell = ({ announcements }: { announcements: any[] }) => {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(o => !o)}
-        className="relative p-2 rounded-xl hover:bg-muted/50 transition-colors">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative p-2 rounded-xl hover:bg-muted/50 transition-colors border border-border"
+        title="Announcements"
+      >
         <Bell className="w-5 h-5 text-muted-foreground" />
         {recent.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
             {recent.length > 9 ? "9+" : recent.length}
           </span>
         )}
@@ -47,23 +83,48 @@ const AnnouncementBell = ({ announcements }: { announcements: any[] }) => {
 
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            className="absolute right-0 top-10 w-80 glass-strong rounded-xl shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-border">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Announcements</p>
+            className="absolute right-0 top-12 w-80 glass-strong rounded-2xl shadow-2xl z-50 overflow-hidden border border-border"
+          >
+            <div className="p-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
+              <p className="text-xs font-bold text-foreground tracking-wide flex items-center gap-2">
+                <Bell className="w-3.5 h-3.5 text-primary" /> Class Announcements
+              </p>
+              {recent.length > 0 && (
+                <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  {recent.length} new
+                </span>
+              )}
             </div>
-            {announcements.slice(0, 3).map((a, i) => (
-              <div key={a.id || i} className="p-3 border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                <p className="text-sm font-medium">{a.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {a.author} • {new Date(a.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-            ))}
-            {announcements.length === 0 && (
-              <p className="p-4 text-sm text-muted-foreground text-center">No announcements yet.</p>
-            )}
+            <div className="max-h-72 overflow-y-auto divide-y divide-border/60">
+              {announcements.map((a, i) => (
+                <div key={a.id || i} className="p-3 hover:bg-muted/20 transition-colors">
+                  <p className="text-xs font-semibold text-foreground leading-snug">{a.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.message}</p>
+                  <div className="flex items-center justify-between gap-1 mt-1.5 text-[10px] text-muted-foreground/60">
+                    <span>{a.author || "Faculty"}</span>
+                    <span>{new Date(a.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+              {announcements.length === 0 && (
+                <p className="p-6 text-xs text-muted-foreground text-center">No announcements yet.</p>
+              )}
+            </div>
+            <div className="p-2.5 border-t border-border bg-muted/20 text-center">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  if (onViewAll) onViewAll();
+                }}
+                className="text-xs font-semibold text-primary hover:underline flex items-center justify-center gap-1 w-full"
+              >
+                View All Announcements <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -73,114 +134,436 @@ const AnnouncementBell = ({ announcements }: { announcements: any[] }) => {
 
 const StudentOverview = () => {
   const navigate = useNavigate();
+  const user = getDemoUser();
+  const [classrooms, setClassrooms] = useState<ClassroomInfo[]>([]);
+  const [activeClass, setActiveClass] = useState<ClassroomInfo | null>(getActiveClassroom());
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [assignmentCount, setAssignmentCount] = useState(0);
-  const lastCountRef = useRef(0);
+  const [latestLecture, setLatestLecture] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>({
+    enrolled_classrooms: 0,
+    available_lectures: 0,
+    materials_count: 0,
+    pending_assignments: 0,
+    completed_assignments: 0,
+    credits: 0,
+    avg_score: 0,
+  });
 
-  const fetchAnnouncements = useCallback(async (isPolling = false) => {
+  // Join Classroom state
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+
+  const fetchStudentData = async () => {
+    if (!user) return;
     try {
-      const data = await apiFetch("/announcements/");
-      const list: any[] = data.announcements || [];
-      if (isPolling && list.length > lastCountRef.current) {
-        const newest = list[0];
-        toast(`📢 New announcement: ${newest.title}`, { duration: 5000 });
+      // 1. Fetch enrolled classrooms
+      const classList: ClassroomInfo[] = await apiFetch(`/classrooms/enrolled/${user.id}`);
+      setClassrooms(classList || []);
+
+      const current = getActiveClassroom();
+      const currentClass = classList.find((c) => c.id === current?.id) || classList[0] || null;
+      setActiveClass(currentClass);
+      setActiveClassroom(currentClass);
+
+      // 2. Fetch analytics
+      const stats = await apiFetch(`/classrooms/analytics/student/${user.id}`);
+      setAnalytics(stats || {});
+
+      // 3. Fetch announcements for this student and classroom
+      const annUrl = currentClass
+        ? `/announcements/?student_id=${user.id}&classroom_id=${currentClass.id}`
+        : `/announcements/?student_id=${user.id}`;
+      const annRes = await apiFetch(annUrl);
+      setAnnouncements(annRes.announcements || []);
+
+      // 4. Fetch latest lecture
+      const lecRes = await apiFetch(
+        currentClass ? `/lectures/?classroom_id=${currentClass.id}` : "/lectures/"
+      );
+      if (Array.isArray(lecRes) && lecRes.length > 0) {
+        setLatestLecture(lecRes[0]);
+      } else {
+        setLatestLecture(null);
       }
-      lastCountRef.current = list.length;
-      setAnnouncements(list);
-    } catch { /* silent */ }
-  }, []);
+    } catch (err) {
+      console.warn("Error fetching student dashboard:", err);
+    }
+  };
 
   useEffect(() => {
-    fetchAnnouncements(false);
-    const interval = setInterval(() => fetchAnnouncements(true), 30000);
-    return () => clearInterval(interval);
-  }, [fetchAnnouncements]);
+    fetchStudentData();
 
-  useEffect(() => {
-    apiFetch("/assignments/published")
-      .then(d => setAssignmentCount((d.assignments || []).length))
-      .catch(() => {});
-  }, []);
+    const handleClassChange = (e: any) => {
+      setActiveClass(e.detail);
+      fetchStudentData();
+    };
+
+    window.addEventListener("classroomChanged", handleClassChange);
+    return () => window.removeEventListener("classroomChanged", handleClassChange);
+  }, [user?.id]);
+
+  const handleJoinClassroom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = joinCode.trim().toUpperCase();
+    if (!cleanCode) {
+      toast.error("Please enter a 6-character classroom code");
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const res = await apiFetch("/classrooms/join", {
+        method: "POST",
+        body: JSON.stringify({
+          code: cleanCode,
+          student_id: user?.id || "stu_demo",
+          student_name: user?.full_name || "Student Demo",
+          student_email: user?.email || "student@gmail.com",
+        }),
+      });
+
+      if (res.success && res.classroom) {
+        toast.success(`Successfully joined ${res.classroom.name}!`);
+        setShowJoinModal(false);
+        setJoinCode("");
+        setActiveClass(res.classroom);
+        setActiveClassroom(res.classroom);
+        fetchStudentData();
+        window.dispatchEvent(new CustomEvent("classroomChanged", { detail: res.classroom }));
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to join classroom. Check code.");
+    } finally {
+      setJoining(false);
+    }
+  };
 
   return (
     <div>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-1">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="font-display text-2xl font-bold">Welcome back, Student!</h1>
-          <p className="text-sm text-muted-foreground mt-1 mb-8">Your learning dashboard at a glance</p>
+          <h1 className="font-display text-2xl font-bold">
+            Welcome back, {user?.full_name || "Student"}!
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your personalized learning dashboard and interactive study space
+          </p>
         </div>
-        <AnnouncementBell announcements={announcements} />
-      </motion.div>
+        <div className="flex items-center gap-3 shrink-0">
+          <GlowButton variant="secondary" onClick={() => setShowJoinModal(true)}>
+            <Plus className="w-4 h-4" /> Join Classroom
+          </GlowButton>
+          <AnnouncementBell
+            announcements={announcements}
+            onViewAll={() => navigate("/student/announcements")}
+          />
+        </div>
+      </div>
 
-      {/* Stats */}
+      {/* Analytics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Credits", value: "920", icon: Star, color: "text-primary" },
-          { label: "Rank", value: "#5", icon: TrendingUp, color: "text-glow-cyan" },
-          { label: "Assignments", value: assignmentCount > 0 ? `${assignmentCount} pending` : "0 pending", icon: ClipboardList, color: "text-secondary" },
-          { label: "Notes", value: "1 saved", icon: FileText, color: "text-accent" },
+          {
+            label: "Classroom Credits",
+            value: analytics.credits,
+            icon: Star,
+            color: "text-primary",
+            sub: "earned so far",
+          },
+          {
+            label: "Enrolled Courses",
+            value: analytics.enrolled_classrooms,
+            icon: GraduationCap,
+            color: "text-glow-cyan",
+            sub: "active classrooms",
+          },
+          {
+            label: "Pending Quizzes",
+            value: `${analytics.pending_assignments} pending`,
+            icon: ClipboardList,
+            color: "text-secondary",
+            sub: `${analytics.completed_assignments} submitted`,
+          },
+          {
+            label: "Available Notes & PDFs",
+            value: `${analytics.available_lectures + analytics.materials_count} items`,
+            icon: FileText,
+            color: "text-accent",
+            sub: "ready for AI review",
+          },
         ].map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }} className="float-card p-5">
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="float-card p-5"
+          >
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
               <s.icon className={`w-5 h-5 ${s.color}`} />
             </div>
             <p className="font-display text-2xl font-bold">{s.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">{s.label}</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">{s.sub}</p>
           </motion.div>
         ))}
       </div>
 
+      {/* Classrooms Banner / Enrolled List */}
+      <div className="glass p-6 rounded-2xl mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-primary" />
+            <h2 className="font-display font-semibold text-base">Your Enrolled Classrooms</h2>
+          </div>
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Join Another Classroom
+          </button>
+        </div>
+
+        {classrooms.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-border rounded-xl">
+            <GraduationCap className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2.5" />
+            <h3 className="font-medium text-sm">You are not enrolled in any classroom yet</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Ask your teacher for their 6-character classroom join code.
+            </p>
+            <GlowButton variant="primary" onClick={() => setShowJoinModal(true)}>
+              Enter Classroom Code
+            </GlowButton>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {classrooms.map((c) => {
+              const isSelected = activeClass?.id === c.id;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    setActiveClass(c);
+                    setActiveClassroom(c);
+                    window.dispatchEvent(new CustomEvent("classroomChanged", { detail: c }));
+                  }}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-primary/15 border-primary shadow-sm"
+                      : "bg-muted/30 border-border hover:border-primary/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10 uppercase">
+                      {c.subject}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] text-green-500 font-semibold bg-green-500/10 px-2 py-0.5 rounded-full">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-sm">{c.name}</h3>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Faculty: {c.faculty_email || "Professor"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Latest Lecture */}
-        <div className="glass p-6 rounded-xl">
-          <h2 className="font-display font-semibold mb-4">Latest Lecture</h2>
+        {/* Latest Synchronized Lecture */}
+        <div className="glass p-6 rounded-2xl flex flex-col justify-between">
           <div>
-            <div className="flex items-start justify-between mb-1">
-              <p className="text-sm font-medium">AI & ML Fundamentals</p>
-              <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Transcribed
-              </span>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-base flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" /> Synchronized Lecture Notes
+              </h2>
+              {latestLecture && (
+                <span className="flex items-center gap-1 text-[11px] text-green-500 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> AI Summarized
+                </span>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground/60 mb-1">Today, 10:30 AM • 4:32 minutes</p>
-            <div className="mt-3 p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground leading-relaxed">
-              "Today we covered the fundamentals of Artificial Intelligence and Machine Learning. We discussed supervised learning, neural networks, gradient descent, backpropagation and model evaluation..."
-            </div>
-            <button onClick={() => navigate("/student/notes")}
-              className="mt-3 text-xs font-semibold text-primary hover:underline transition-all">
-              View Notes →
+
+            {latestLecture ? (
+              <div>
+                <h3 className="font-semibold text-sm mb-1">{latestLecture.title}</h3>
+                <p className="text-xs text-muted-foreground/70 mb-3">
+                  Recorded: {new Date(latestLecture.created_at).toLocaleString()}
+                </p>
+                <div className="p-3.5 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-6">
+                  {latestLecture.summary || latestLecture.transcript || "Notes are ready."}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-10 text-xs text-muted-foreground">
+                <BookOpen className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p>No lectures recorded yet in this classroom.</p>
+                <p className="mt-1">When faculty records a lecture, AI notes will synchronize here.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-border flex items-center justify-between">
+            <button
+              onClick={() => navigate("/student/notes")}
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              Explore All Lecture Notes <ArrowRight className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => navigate("/student/explainer")}
+              className="text-xs font-semibold text-secondary hover:underline flex items-center gap-1"
+            >
+              PDF AI Explainer <ArrowRight className="w-3 h-3" />
             </button>
           </div>
         </div>
 
-        {/* Announcements */}
-        <div className="glass p-6 rounded-xl">
-          <h2 className="font-display font-semibold mb-4">📢 Announcements</h2>
-          {announcements.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No announcements from your teacher yet.</p>
-          ) : (
-            <div className="space-y-0">
-              {announcements.slice(0, 5).map((a, i) => (
-                <motion.div key={a.id || i} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className="flex items-start gap-3 py-3 border-b border-border last:border-0 hover:bg-muted/20 rounded-lg px-2 -mx-2 transition-colors">
-                  <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full"
-                    style={{ backgroundColor: a.priority === "urgent" ? "hsl(var(--destructive))" : "hsl(var(--primary))" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-snug">{a.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.message}</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">{a.author}</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0 mt-0.5">
-                    {new Date(a.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </motion.div>
-              ))}
+        {/* Classroom Broadcasts Widget */}
+        <div className="glass p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-base flex items-center gap-2">
+                <Bell className="w-4 h-4 text-primary" /> Classroom Broadcasts
+              </h2>
+              {announcements.length > 0 && (
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {announcements.length} total
+                </span>
+              )}
             </div>
-          )}
+
+            {announcements.length === 0 ? (
+              <div className="text-center py-10 text-xs text-muted-foreground">
+                <Megaphone className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p>No recent broadcasts from your faculty.</p>
+                <p className="mt-1">When instructors post announcements, they will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {announcements.slice(0, 3).map((a, i) => {
+                  const isRecent = (() => {
+                    try {
+                      return Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
+                    } catch {
+                      return false;
+                    }
+                  })();
+
+                  return (
+                    <div
+                      key={a.id || i}
+                      className={`p-3.5 rounded-xl border text-xs transition-colors ${
+                        isRecent
+                          ? "bg-primary/5 border-primary/30"
+                          : "bg-muted/20 border-border"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground text-xs leading-snug">{a.title}</p>
+                          {isRecent && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-[9px] font-bold text-emerald-400 uppercase tracking-wider shrink-0">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        {a.classroom_name && (
+                          <span className="text-[10px] text-secondary font-medium px-1.5 py-0.5 rounded bg-secondary/10 shrink-0">
+                            {a.classroom_name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{a.message}</p>
+                      <div className="flex items-center justify-between mt-2 pt-1 border-t border-border/40 text-[10px] text-muted-foreground/70">
+                        <span>{a.author || "Faculty"}</span>
+                        <span>{new Date(a.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-border flex items-center justify-between">
+            <button
+              onClick={() => navigate("/student/announcements")}
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              View All Announcements <ArrowRight className="w-3 h-3" />
+            </button>
+            <span className="text-[11px] text-muted-foreground/60">
+              {announcements.length > 3 ? `+${announcements.length - 3} more` : ""}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Join Classroom Modal */}
+      <AnimatePresence>
+        {showJoinModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-strong p-6 md:p-8 rounded-2xl max-w-md w-full border border-border shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <GraduationCap className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-lg">Join a Classroom</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Enter the 6-character code provided by your faculty
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowJoinModal(false)}
+                  className="text-muted-foreground hover:text-foreground text-sm font-semibold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleJoinClassroom} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Classroom Code</label>
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. DBMS01"
+                    maxLength={10}
+                    className="w-full px-4 py-3 rounded-xl bg-muted/50 border border-border text-center text-lg font-mono font-bold tracking-widest text-primary focus:outline-none focus:border-primary transition-all uppercase"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <GlowButton variant="ghost" type="button" onClick={() => setShowJoinModal(false)}>
+                    Cancel
+                  </GlowButton>
+                  <GlowButton variant="primary" type="submit" disabled={joining}>
+                    {joining ? "Joining..." : "Join Classroom"}
+                  </GlowButton>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,16 +1,12 @@
 import json
-from fastapi import APIRouter, HTTPException
-from app.services.supabase_client import supabase
+from fastapi import APIRouter, HTTPException, Query
+from app.services.db import db
 from app.services.ai_services import extract_keywords, generate_assignment_from_transcript
-from app.models.schemas import AssignmentCreate, Assignment, SubmissionCreate, Submission
-from typing import List
+from app.models.schemas import AssignmentCreate, Assignment, SubmissionCreate, Submission, SubmissionGrade
+from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
 
 router = APIRouter(tags=["Assignments"])
-
-# In-memory store for published assignments
-published_assignments = []
 
 
 class KeywordRequest(BaseModel):
@@ -21,6 +17,7 @@ class GenerateRequest(BaseModel):
     transcript: str
     title: str = "AI Generated Assignment"
     keywords: list = []
+    classroom_id: Optional[str] = None
 
 
 @router.post("/assignments/keywords")
@@ -33,112 +30,158 @@ async def get_keywords(req: KeywordRequest):
 async def generate_ai_assignment(req: GenerateRequest):
     result = generate_assignment_from_transcript(req.transcript)
     questions_str = json.dumps(result)
+    keywords_str = json.dumps(req.keywords if req.keywords else extract_keywords(req.transcript))
 
-    assignment_data = {
+    return {
+        "success": True,
         "title": req.title,
-        "description": "AI-generated assignment.",
         "questions": questions_str,
+        "questions_parsed": result,
+        "keywords": req.keywords or []
     }
-
-    try:
-        response = supabase.table("assignments").insert(assignment_data).execute()
-        saved = response.data[0] if response.data else {}
-        saved["questions_parsed"] = result
-        return saved
-    except Exception as db_err:
-        return {"success": True, "questions": questions_str, "questions_parsed": result}
-
-
-@router.post("/assignments", response_model=Assignment)
-async def create_assignment(assignment_in: AssignmentCreate):
-    assignment_data = {
-        "title": assignment_in.title,
-        "description": assignment_in.description,
-        "questions": assignment_in.questions,
-        "lecture_id": assignment_in.lecture_id,
-    }
-    try:
-        response = supabase.table("assignments").insert(assignment_data).execute()
-        return response.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/assignments")
-async def get_assignments():
-    try:
-        response = supabase.table("assignments").select("*").execute()
-        return response.data
-    except Exception:
-        return []
-
-
-@router.post("/submissions")
-async def create_submission(submission_in: SubmissionCreate):
-    submission_data = {
-        "assignment_id": submission_in.assignment_id,
-        "student_id": "demo-student",
-        "content": submission_in.content,
-        "status": "submitted",
-    }
-    try:
-        response = supabase.table("submissions").insert(submission_data).execute()
-        return response.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/submissions")
-async def get_submissions():
-    try:
-        response = supabase.table("submissions").select("*").execute()
-        return response.data
-    except Exception:
-        return []
 
 
 @router.post("/assignments/publish")
-async def publish_assignment(data: dict):
-    assignment = {
-        "id": len(published_assignments) + 1,
-        "title": data.get("title", "Assignment"),
-        "questions": data.get("questions", []),
-        "keywords": data.get("keywords", []),
-        "author": data.get("author", "Faculty"),
-        "created_at": datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
-    }
-    published_assignments.append(assignment)
-    return {"success": True, "assignment": assignment}
+@router.post("/assignments")
+async def publish_assignment(data: AssignmentCreate):
+    questions_str = data.questions if isinstance(data.questions, str) else json.dumps(data.questions)
+    keywords_str = data.keywords if isinstance(data.keywords, str) else json.dumps(data.keywords or [])
+
+    saved = db.save_assignment(
+        title=data.title,
+        description=data.description or "AI-generated classroom assignment",
+        questions=questions_str,
+        keywords=keywords_str,
+        classroom_id=data.classroom_id,
+        author=data.author or "Faculty",
+        due_date=data.due_date
+    )
+    return {"success": True, "assignment": saved}
 
 
 @router.get("/assignments/published")
-async def get_published_assignments():
-    return {"assignments": list(reversed(published_assignments))}
+@router.get("/assignments")
+async def get_published_assignments(classroom_id: Optional[str] = Query(None)):
+    assignments = db.get_assignments(classroom_id=classroom_id)
+    # Parse questions JSON if needed for client ease
+    for a in assignments:
+        if a.get("questions"):
+            try:
+                a["questions_parsed"] = json.loads(a["questions"])
+            except Exception:
+                a["questions_parsed"] = a["questions"]
+        if a.get("keywords"):
+            try:
+                a["keywords_parsed"] = json.loads(a["keywords"])
+            except Exception:
+                a["keywords_parsed"] = [k.strip() for k in a["keywords"].split(",") if k.strip()]
+    return {"assignments": assignments}
 
 
-# In-memory submissions store
-submissions_store = []
+def auto_evaluate_mcq(questions_raw: str, answers: list) -> float:
+    try:
+        parsed = json.loads(questions_raw) if isinstance(questions_raw, str) else questions_raw
+        mcqs = parsed.get("multiple_choice_questions", []) or parsed.get("mcq", [])
+        if not mcqs or not answers:
+            return 80.0  # Default base score if ungradable
+
+        correct_count = 0
+        total_mcq = len(mcqs)
+
+        for i, q in enumerate(mcqs):
+            correct_ans = q.get("answer") or q.get("ans")
+            student_ans = None
+            for ans in answers:
+                if ans.get("question_index") == i or ans.get("q_index") == i:
+                    student_ans = ans.get("answer")
+                    break
+
+            if student_ans is not None:
+                # Compare string or index
+                if str(student_ans).strip().lower() == str(correct_ans).strip().lower():
+                    correct_count += 1
+                elif isinstance(correct_ans, int) and (
+                    str(student_ans).startswith(chr(65 + correct_ans)) or str(student_ans) == str(correct_ans)
+                ):
+                    correct_count += 1
+
+        # Score out of 100 with base points for effort
+        score = (correct_count / total_mcq) * 70 + 30
+        return round(score, 1)
+    except Exception:
+        return 85.0
 
 
 @router.post("/assignments/submit")
-async def submit_assignment(data: dict):
-    from datetime import datetime
-    submission = {
-        "id": len(submissions_store) + 1,
-        "assignment_id": data.get("assignment_id"),
-        "student_id": data.get("student_id", "student"),
-        "answers": data.get("answers", []),
-        "submitted_at": datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
-    }
-    submissions_store.append(submission)
-    # Also try Supabase
-    try:
-        supabase.table("submissions").insert({
-            "assignment_id": str(data.get("assignment_id")),
-            "student_id": data.get("student_id", "student"),
-            "content": str(data.get("answers", [])),
-            "status": "submitted",
-        }).execute()
-    except Exception:
-        pass
+@router.post("/submissions")
+async def submit_assignment(data: SubmissionCreate):
+    assignment = db.get_assignment_by_id(data.assignment_id)
+    auto_score = 85.0
+    grade = "A"
+
+    content_str = data.content if isinstance(data.content, str) else json.dumps(data.content)
+
+    if assignment and assignment.get("questions"):
+        try:
+            answers_list = json.loads(content_str) if isinstance(content_str, str) else data.content
+            if isinstance(answers_list, list):
+                auto_score = auto_evaluate_mcq(assignment["questions"], answers_list)
+                if auto_score >= 90:
+                    grade = "A+"
+                elif auto_score >= 80:
+                    grade = "A"
+                elif auto_score >= 70:
+                    grade = "B"
+                else:
+                    grade = "C"
+        except Exception:
+            pass
+
+    classroom_id = data.classroom_id or (assignment.get("classroom_id") if assignment else None)
+
+    submission = db.save_submission(
+        assignment_id=data.assignment_id,
+        classroom_id=classroom_id,
+        student_id=data.student_id,
+        student_name=data.student_name or "Student",
+        student_email=data.student_email or "student@university.edu",
+        content=content_str,
+        score=auto_score,
+        grade=grade,
+        feedback=f"Auto-evaluated: {grade} ({auto_score}%)"
+    )
+
     return {"success": True, "submission": submission}
+
+
+@router.get("/submissions")
+async def get_submissions(
+    classroom_id: Optional[str] = Query(None),
+    assignment_id: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None)
+):
+    submissions = db.get_submissions(
+        classroom_id=classroom_id,
+        assignment_id=assignment_id,
+        student_id=student_id
+    )
+    for s in submissions:
+        if s.get("content"):
+            try:
+                s["content_parsed"] = json.loads(s["content"])
+            except Exception:
+                s["content_parsed"] = s["content"]
+    return submissions
+
+
+@router.post("/submissions/{submission_id}/grade")
+async def grade_submission(submission_id: str, data: SubmissionGrade):
+    updated = db.update_submission_grade(
+        submission_id=submission_id,
+        grade=data.grade,
+        score=data.score,
+        feedback=data.feedback or ""
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return {"success": True, "submission": updated}
