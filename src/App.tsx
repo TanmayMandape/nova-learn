@@ -11,6 +11,7 @@ import CourseMaterials from "./pages/admin/CourseMaterials";
 import Assignments from "./pages/admin/Assignments";
 import Announcements from "./pages/admin/Announcements";
 import StudentCredits from "./pages/admin/StudentCredits";
+import DemoLecture from "./pages/admin/DemoLecture";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import AINotes from "./pages/student/AINotes";
 import StudentAnnouncements from "./pages/student/StudentAnnouncements";
@@ -18,6 +19,7 @@ import PDFExplainer from "./pages/student/PDFExplainer";
 import StudentAssignments from "./pages/student/StudentAssignments";
 import Chatbot from "./pages/student/Chatbot";
 import Profile from "./pages/student/Profile";
+import StudentDemoLecture from "./pages/student/DemoLecture";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,7 @@ const App = () => (
           <Route path="/login/:role" element={<Login />} />
           <Route path="/admin" element={<AdminDashboard />}>
             <Route path="recording" element={<LectureRecording />} />
+            <Route path="demo-lecture" element={<DemoLecture />} />
             <Route path="materials" element={<CourseMaterials />} />
             <Route path="assignments" element={<Assignments />} />
             <Route path="announcements" element={<Announcements />} />
@@ -40,6 +43,7 @@ const App = () => (
           </Route>
           <Route path="/student" element={<StudentDashboard />}>
             <Route path="announcements" element={<StudentAnnouncements />} />
+            <Route path="demo-lecture" element={<StudentDemoLecture />} />
             <Route path="notes" element={<AINotes />} />
             <Route path="explainer" element={<PDFExplainer />} />
             <Route path="assignments" element={<StudentAssignments />} />

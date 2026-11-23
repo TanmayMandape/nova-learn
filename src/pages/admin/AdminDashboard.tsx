@@ -31,6 +31,7 @@ import { toast } from "sonner";
 const navItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/admin" },
   { icon: Mic, label: "Lecture Recording", path: "/admin/recording" },
+  { icon: BookOpen, label: "Demo Lecture (ANN)", path: "/admin/demo-lecture" },
   { icon: FileText, label: "Course Materials & PDF", path: "/admin/materials" },
   { icon: ClipboardList, label: "Assignments & Grading", path: "/admin/assignments" },
   { icon: Megaphone, label: "Announcements", path: "/admin/announcements" },

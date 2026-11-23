@@ -32,6 +32,7 @@ import { toast } from "sonner";
 const navItems = [
   { icon: BookOpen, label: "Overview", path: "/student" },
   { icon: Megaphone, label: "Announcements", path: "/student/announcements" },
+  { icon: Sparkles, label: "Demo Lecture (ANN)", path: "/student/demo-lecture" },
   { icon: Zap, label: "AI Lecture Notes", path: "/student/notes" },
   { icon: FileText, label: "PDF AI Explainer", path: "/student/explainer" },
   { icon: ClipboardList, label: "Assignments & Quizzes", path: "/student/assignments" },
